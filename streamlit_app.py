@@ -36,7 +36,7 @@ if prompt:
             model.fit(df)
             future = model.make_future_dataframe(periods=7)
             forecast = model.predict(future)
-            st.line_chart(forecast.set_index("ds")[["yhat"]])
+            st.dataframe(forecast[["ds", "yhat"]].tail(7).rename(columns={"ds": "Date", "yhat": "Predicted Price"}))
         else:
             st.error("No data found.")
 
