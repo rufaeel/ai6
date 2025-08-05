@@ -1,21 +1,14 @@
-# 💹 AI Stock & Crypto Predictor
+# 📈 AI Stock & Crypto Forecaster
 
-Live prediction app for ASX + US stocks using yFinance, Polygon, Prophet, and real-time news.
+Live forecasting app with Streamlit, Prophet, yFinance and chatbot UI.
 
-## 🚀 Features
-- Real-time stock scanner (US + ASX)
-- Forecast prices using AI
-- Sentiment analysis from live news
-- Chatbot-style interface (coming soon)
+## Features
+- Predict US Stocks & Crypto prices (AAPL, BTC-USD)
+- Chatbot interface (simple commands)
+- 7-day forecast using Prophet
 
-## 🛠️ Run locally
+## Run locally
 ```bash
 pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
-
-## 🌐 Deploy on Streamlit Cloud
-1. Upload this repo to GitHub
-2. Go to [Streamlit Cloud](https://streamlit.io/cloud)
-3. Click **New App** > Select this repo
-4. Set `streamlit_app.py` as entrypoint
