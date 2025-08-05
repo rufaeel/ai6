@@ -1,13 +1,17 @@
-# 📈 AI Stock & Crypto Forecaster
+# 📊 AI Stock & Crypto Forecast with News Sentiment
 
-Live forecasting app with Streamlit, Prophet, yFinance and chatbot UI.
+This Streamlit app lets you:
+- Forecast stocks and crypto prices (ASX + US + BTC)
+- Analyze news sentiment using Polygon.io and VADER
+- Ask questions using a simple chatbot interface
 
-## Features
-- Predict US Stocks & Crypto prices (AAPL, BTC-USD)
-- Chatbot interface (simple commands)
-- 7-day forecast using Prophet
+## Example Prompts:
+- "Forecast AAPL"
+- "Forecast BTC-USD"
+- "News Tesla"
+- "Forecast CBA.AX"
 
-## Run locally
+## Setup
 ```bash
 pip install -r requirements.txt
 streamlit run streamlit_app.py
