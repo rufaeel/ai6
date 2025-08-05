@@ -1,0 +1,7 @@
+streamlit
+yfinance
+pandas
+prophet
+plotly
+requests
+polygon-api-client
