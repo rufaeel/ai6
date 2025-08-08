@@ -4,3 +4,5 @@ pandas
 prophet
 requests
 vaderSentiment
+openai>=1.30.0
+python-dotenv

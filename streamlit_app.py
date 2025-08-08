@@ -1,82 +1,51 @@
-import streamlit as st
-import yfinance as yf
-import pandas as pd
-from prophet import Prophet
-from datetime import datetime, timedelta
-import requests
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+import os, streamlit as st
+from dotenv import load_dotenv
 
-POLYGON_API_KEY = "Plw9XJ42RE7ktOz7TIxKVTYWxnNi9sZU"
-analyzer = SentimentIntensityAnalyzer()
+load_dotenv()  # reads .env if present
 
-st.set_page_config(page_title="📈 AI Stock/Crypto Forecast & News", layout="wide")
-st.title("📈 Smart AI: Forecast + News Sentiment")
+st.set_page_config(page_title="Market AI – Chat & Forecasts", layout="wide")
+st.title("💬 Market AI — ChatGPT‑style forecasts with live data")
 
-prompt = st.chat_input("Ask: 'Forecast TSLA', 'News CBA.AX', 'Top stocks this week'")
+# Lazy imports to speed cold start
+from tools import get_quote, forecast, news_sentiment, screen_top_movers, default_universe
+from llm import respond
 
-if prompt:
-    st.chat_message("user").write(prompt)
-    forecast_mode = "forecast" in prompt.lower()
-    news_mode = "news" in prompt.lower()
-    top_mode = "top" in prompt.lower()
+st.caption("Tip: Ask things like ‘Forecast CBA.AX 7d’, ‘Top stocks this week’, or ‘News TSLA’.")
 
-    def get_forecast(ticker):
-        end = datetime.today()
-        start = end - timedelta(days=365)
-        data = yf.download(ticker, start=start, end=end)
-        if not data.empty:
-            df = data.reset_index()[["Date", "Close"]]
-            df.columns = ["ds", "y"]
-            model = Prophet()
-            model.fit(df)
-            future = model.make_future_dataframe(periods=7)
-            forecast = model.predict(future)
-            table = forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail(7)
-            table.columns = ["Date", "Predicted", "Lower Bound", "Upper Bound"]
-            return table, df["y"].iloc[-1], forecast["yhat"].iloc[-7:].mean()
-        return None, None, None
+# Sidebar config
+with st.sidebar:
+    st.subheader("Settings")
+    st.write("Provide API keys via `.env` or Streamlit secrets.")
+    ok = True
+    if not os.getenv("OPENAI_API_KEY"):
+        st.error("Missing OPENAI_API_KEY")
+        ok = False
+    if not os.getenv("POLYGON_API_KEY"):
+        st.warning("POLYGON_API_KEY not set – news coverage may be limited.")
 
-    if forecast_mode:
-        ticker = prompt.upper().split()[-1]
-        table, _, _ = get_forecast(ticker)
-        if table is not None:
-            st.chat_message("assistant").write(f"📈 Prediction for {ticker} (Next 7 Days)")
-            st.dataframe(table)
-        else:
-            st.error("No data found.")
+# Chat state
+if "history" not in st.session_state:
+    st.session_state.history = []
 
-    elif news_mode:
-        company = prompt.split("news")[-1].strip()
-        st.chat_message("assistant").write(f"📰 News sentiment for '{company}'")
-        url = f"https://api.polygon.io/v2/reference/news?ticker={company.upper()}&limit=5&apiKey={POLYGON_API_KEY}"
-        res = requests.get(url)
-        if res.status_code == 200:
-            news = res.json().get("results", [])
-            scores = []
-            for n in news:
-                title = n.get("title", "")
-                score = analyzer.polarity_scores(title)["compound"]
-                scores.append(score)
-                st.write(f"🗞 {title}")
-                st.progress((score + 1) / 2)
-            if scores:
-                st.success(f"📊 Avg Sentiment: {sum(scores)/len(scores):.2f}")
-        else:
-            st.error("Could not load news.")
+# Render chat
+for role, content in st.session_state.history:
+    st.chat_message(role).write(content)
 
-    elif top_mode:
-        st.chat_message("assistant").write("📊 Scanning top US & ASX stocks for 7-day growth...")
-        watchlist = ["AAPL", "MSFT", "TSLA", "NVDA", "CBA.AX", "BHP.AX", "WBC.AX"]
-        data = []
-        for ticker in watchlist:
-            table, current, future_avg = get_forecast(ticker)
-            if current and future_avg:
-                pct = ((future_avg - current) / current) * 100
-                data.append({
-                    "Ticker": ticker,
-                    "Current Price": round(current, 2),
-                    "Forecast (7d Avg)": round(future_avg, 2),
-                    "Expected % Change": round(pct, 2)
-                })
-        df = pd.DataFrame(data).sort_values("Expected % Change", ascending=False)
-        st.dataframe(df)
+user_text = st.chat_input("Ask a question about stocks, crypto, news, or forecasts…")
+if user_text:
+    st.session_state.history.append(("user", user_text))
+    st.chat_message("user").write(user_text)
+
+    try:
+        answer = respond(user_text, {
+            "get_quote": get_quote,
+            "forecast": forecast,
+            "news_sentiment": news_sentiment,
+            "screen_top_movers": screen_top_movers,
+            "default_universe": default_universe
+        })
+    except Exception as e:
+        answer = f"Oops, something went wrong: {e}"
+
+    st.session_state.history.append(("assistant", answer))
+    st.chat_message("assistant").markdown(answer)
