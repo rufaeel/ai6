@@ -1,6 +1,27 @@
-import os, json, re
-from typing import Dict, Any
+
+# llm.py
+import os, re
+from typing import Dict
+try:
+    import streamlit as st
+    _OPENAI = st.secrets.get("OPENAI_API_KEY", None)
+except Exception:
+    st = None
+    _OPENAI = None
+
+# Fallback to environment if not in st.secrets
+if not _OPENAI:
+    _OPENAI = os.getenv("OPENAI_API_KEY")
+
 from openai import OpenAI
+
+if not _OPENAI:
+    # Fail early, but with a clear message (so the app doesn't white-screen)
+    raise RuntimeError(
+        "Missing OpenAI API key. Set OPENAI_API_KEY in Streamlit Secrets or environment."
+    )
+
+client = OpenAI(api_key=_OPENAI)
 
 SYSTEM_PROMPT = """You are MarketAI, a careful financial assistant.
 - Always include probabilities and confidence intervals if available.
@@ -11,31 +32,27 @@ SYSTEM_PROMPT = """You are MarketAI, a careful financial assistant.
 Return concise, direct answers.
 """
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 def route_intent(user_text: str) -> Dict[str,str]:
     t = user_text.lower()
+    import re
     if "top" in t and ("rise" in t or "gainer" in t or "shoot" in t):
-        # detect horizon
         if "today" in t or "1d" in t:
             return {"action":"screen", "horizon":"1d"}
         if "month" in t:
             return {"action":"screen", "horizon":"30d"}
         return {"action":"screen", "horizon":"7d"}
     if "forecast" in t or "predict" in t or "price target" in t:
-        # grab ticker-ish token
-        m = re.findall(r"[A-Za-z]{1,5}\.?[A-Za-z]{0,3}\.?(AX)?", user_text)
+        m = re.findall(r"[A-Za-z]{1,5}(?:\.[A-Za-z]{1,3})?(?:\.AX)?", user_text)
         ticker = m[-1] if m else "AAPL"
         return {"action":"forecast", "ticker": ticker, "horizon":"7d"}
     if "news" in t or "sentiment" in t:
-        m = re.findall(r"[A-Za-z]{1,5}\.?[A-Za-z]{0,3}\.?(AX)?", user_text)
+        m = re.findall(r"[A-Za-z]{1,5}(?:\.[A-Za-z]{1,3})?(?:\.AX)?", user_text)
         ticker = m[-1] if m else "AAPL"
         return {"action":"news", "ticker": ticker}
     if "quote" in t or "price" in t:
-        m = re.findall(r"[A-Za-z]{1,5}\.?[A-Za-z]{0,3}\.?(AX)?", user_text)
+        m = re.findall(r"[A-Za-z]{1,5}(?:\.[A-Za-z]{1,3})?(?:\.AX)?", user_text)
         ticker = m[-1] if m else "AAPL"
         return {"action":"quote", "ticker": ticker}
-    # fallback to chat
     return {"action":"chat"}
 
 def respond(user_text: str, toolkit) -> str:
@@ -74,8 +91,8 @@ def respond(user_text: str, toolkit) -> str:
         if not q.get("ok"):
             return f"Couldn't fetch quote for {route['ticker']}."
         return f"**{route['ticker']}** price: {q['price']:.4f} ({q['day_change_pct']:+.2f}% today)"
-    # Fallback chat via LLM
-    msg = [{"role":"system","content":SYSTEM_PROMPT},
-           {"role":"user","content":user_text}]
-    resp = client.chat.completions.create(model="gpt-4o-mini", messages=msg)
+    # Fallback general chat
+    msgs = [{"role":"system","content":SYSTEM_PROMPT},
+            {"role":"user","content":user_text}]
+    resp = client.chat.completions.create(model="gpt-4o-mini", messages=msgs)
     return resp.choices[0].message.content.strip()
