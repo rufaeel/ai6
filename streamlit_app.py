@@ -49,3 +49,12 @@ if user_text:
 
     st.session_state.history.append(("assistant", answer))
     st.chat_message("assistant").markdown(answer)
+import os, streamlit as st
+
+if not os.getenv("OPENAI_API_KEY"):
+    try:
+        import streamlit as st
+        if "OPENAI_API_KEY" not in st.secrets:
+            st.error("Missing OPENAI_API_KEY. Add it in Streamlit → Settings → Secrets.")
+    except Exception:
+        st.error("Missing OPENAI_API_KEY. Set it in your environment or .env file.")
