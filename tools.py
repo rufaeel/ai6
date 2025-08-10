@@ -1,3 +1,4 @@
+
 import os
 from datetime import datetime, timedelta
 import pandas as pd
@@ -20,11 +21,11 @@ POLYGON_API_KEY = _get_secret("POLYGON_API_KEY")
 
 def _horizon_days(horizon: str) -> int:
     h = (horizon or "").lower().strip()
-    if h in ["today","1d","1 day"]:
+    if h in ["today", "1d", "1 day"]:
         return 1
-    if "week" in h or h in ["7d","7 days"]:
+    if "week" in h or h in ["7d", "7 days"]:
         return 7
-    if "month" in h or h in ["30d","30 days"]:
+    if "month" in h or h in ["30d", "30 days"]:
         return 30
     return 7
 
@@ -59,11 +60,11 @@ def forecast(ticker: str, horizon: str = "7d") -> dict:
     if hist.empty or "Close" not in hist.columns:
         return {"ok": False, "error": f"No historical data for {ticker}"}
 
-    df = hist[["Date","Close"]].rename(columns={"Date":"ds","Close":"y"})
+    df = hist[["Date", "Close"]].rename(columns={"Date": "ds", "Close": "y"})
     model = Prophet(daily_seasonality=True, weekly_seasonality=True)
     model.fit(df)
     future = model.make_future_dataframe(periods=days)
-    fc = model.predict(future).tail(days)[["ds","yhat","yhat_lower","yhat_upper"]]
+    fc = model.predict(future).tail(days)[["ds", "yhat", "yhat_lower", "yhat_upper"]]
 
     current = float(df["y"].iloc[-1])
     mean_pred = float(fc["yhat"].mean())
@@ -81,7 +82,7 @@ def forecast(ticker: str, horizon: str = "7d") -> dict:
         up_probs.append(p)
     prob_up = sum(up_probs)/len(up_probs)
 
-    fc = fc.rename(columns={"ds":"date","yhat":"pred","yhat_lower":"lower","yhat_upper":"upper"})
+    fc = fc.rename(columns={"ds": "date", "yhat": "pred", "yhat_lower": "lower", "yhat_upper": "upper"})
     fc["date"] = fc["date"].dt.strftime("%Y-%m-%d")
 
     return {
@@ -103,7 +104,7 @@ def news_sentiment(ticker_or_query: str, limit: int = 10) -> dict:
             if r.status_code == 200:
                 payload = r.json().get("results", [])
                 for item in payload:
-                    title = item.get("title","")
+                    title = item.get("title", "")
                     score = analyzer.polarity_scores(title)["compound"]
                     results.append({"title": title, "url": item.get("article_url"), "sentiment": round(score, 3)})
         except Exception:
@@ -122,14 +123,12 @@ def screen_top_movers(tickers, horizon: str = "7d"):
                 "Expected %": fc["expected_return_pct"],
                 "Prob Up": fc["prob_up"]
             })
-    if not rows:
-        return []
     rows = sorted(rows, key=lambda x: x["Expected %"], reverse=True)
     return rows
 
 def default_universe(market: str = "mixed"):
-    us = ["AAPL","MSFT","TSLA","NVDA","AMZN","META","GOOGL"]
-    asx = ["CBA.AX","BHP.AX","WES.AX","WBC.AX","CSL.AX","NAB.AX","WOW.AX"]
+    us = ["AAPL", "MSFT", "TSLA", "NVDA", "AMZN", "META", "GOOGL"]
+    asx = ["CBA.AX", "BHP.AX", "WES.AX", "WBC.AX", "CSL.AX", "NAB.AX", "WOW.AX"]
     if market.lower().startswith("us"):
         return us
     if market.lower().startswith("asx"):

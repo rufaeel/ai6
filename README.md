@@ -1,10 +1,13 @@
-# Market AI — All‑in‑one (OpenAI + Polygon + Forecasts + Sentiment)
+
+# Market AI — Smart Prompts Edition
+
 Features
 - ChatGPT‑style chat UI (OpenAI)
 - Live quotes (yfinance)
 - Forecasts with confidence intervals & prob_up (Prophet)
 - News sentiment via Polygon + VADER
 - Screening: “which will rise most” for today/week/month (US + ASX universe)
+- **Smart prompts & quick‑action buttons** for common questions
 
 ## Run locally
 ```
