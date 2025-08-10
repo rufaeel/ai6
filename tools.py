@@ -1,5 +1,4 @@
 import os
-import math
 from datetime import datetime, timedelta
 import pandas as pd
 import yfinance as yf
@@ -8,18 +7,25 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 analyzer = SentimentIntensityAnalyzer()
 
-POLYGON_API_KEY = os.getenv("POLYGON_API_KEY", "")
+def _get_secret(name: str) -> str:
+    try:
+        import streamlit as st
+        if name in st.secrets:
+            return st.secrets[name]
+    except Exception:
+        pass
+    return os.getenv(name, "")
 
-# --- Helper ---
+POLYGON_API_KEY = _get_secret("POLYGON_API_KEY")
+
 def _horizon_days(horizon: str) -> int:
-    horizon = (horizon or "").lower().strip()
-    if horizon in ["today","1d","1 day"]:
+    h = (horizon or "").lower().strip()
+    if h in ["today","1d","1 day"]:
         return 1
-    if "week" in horizon or horizon in ["7d","7 days"]:
+    if "week" in h or h in ["7d","7 days"]:
         return 7
-    if "month" in horizon or horizon in ["30d","30 days"]:
+    if "month" in h or h in ["30d","30 days"]:
         return 30
-    # default
     return 7
 
 def _download_yf(ticker: str, lookback_days=365):
@@ -31,9 +37,7 @@ def _download_yf(ticker: str, lookback_days=365):
     data = data.reset_index()
     return data
 
-# --- Public tools ---
 def get_quote(ticker: str) -> dict:
-    """Return last price & daily change using yfinance."""
     df = _download_yf(ticker, 30)
     if df.empty:
         return {"ok": False, "error": f"No data for {ticker}"}
@@ -45,7 +49,6 @@ def get_quote(ticker: str) -> dict:
     return {"ok": True, "ticker": ticker, "price": round(price, 4), "day_change_pct": round(pct, 3)}
 
 def forecast(ticker: str, horizon: str = "7d") -> dict:
-    """Prophet forecast with CI and probability-of-up (simple heuristic)."""
     try:
         from prophet import Prophet
     except Exception as e:
@@ -66,11 +69,16 @@ def forecast(ticker: str, horizon: str = "7d") -> dict:
     mean_pred = float(fc["yhat"].mean())
     expected_return_pct = (mean_pred - current) / current * 100.0
 
-    # very rough probability proxy using CI overlap
+    # simple probability proxy using CI vs current
     up_probs = []
     for _, row in fc.iterrows():
-        low = float(row["yhat_lower"]); mid = float(row["yhat"])
-        up_probs.append(1.0 if mid > current and low > current*0.995 else 0.5 if mid > current else 0.3)
+        low = float(row["yhat_lower"]); mid = float(row["yhat"]); high = float(row["yhat_upper"])
+        p = 0.5
+        if mid > current: p += 0.2
+        if low > current * 0.995: p += 0.2
+        if high > current * 1.01: p += 0.1
+        p = max(0.0, min(1.0, p))
+        up_probs.append(p)
     prob_up = sum(up_probs)/len(up_probs)
 
     fc = fc.rename(columns={"ds":"date","yhat":"pred","yhat_lower":"lower","yhat_upper":"upper"})
@@ -87,23 +95,23 @@ def forecast(ticker: str, horizon: str = "7d") -> dict:
     }
 
 def news_sentiment(ticker_or_query: str, limit: int = 10) -> dict:
-    """Fetch headlines from Polygon (US focus) and score sentiment; fallback to query without ticker param."""
-    headers = {}
     results = []
     if POLYGON_API_KEY:
         url = f"https://api.polygon.io/v2/reference/news?ticker={ticker_or_query.upper()}&limit={limit}&apiKey={POLYGON_API_KEY}"
-        r = requests.get(url, headers=headers, timeout=20)
-        if r.status_code == 200:
-            payload = r.json().get("results", [])
-            for item in payload:
-                title = item.get("title","")
-                score = analyzer.polarity_scores(title)["compound"]
-                results.append({"title": title, "url": item.get("article_url"), "sentiment": round(score, 3)})
-    # Average score
+        try:
+            r = requests.get(url, timeout=20)
+            if r.status_code == 200:
+                payload = r.json().get("results", [])
+                for item in payload:
+                    title = item.get("title","")
+                    score = analyzer.polarity_scores(title)["compound"]
+                    results.append({"title": title, "url": item.get("article_url"), "sentiment": round(score, 3)})
+        except Exception:
+            pass
     avg = round(sum(x["sentiment"] for x in results)/len(results), 3) if results else None
     return {"ok": True, "query": ticker_or_query, "avg_sentiment": avg, "items": results}
 
-def screen_top_movers(tickers, horizon: str = "7d") -> pd.DataFrame:
+def screen_top_movers(tickers, horizon: str = "7d"):
     rows = []
     for t in tickers:
         fc = forecast(t, horizon)
@@ -115,9 +123,9 @@ def screen_top_movers(tickers, horizon: str = "7d") -> pd.DataFrame:
                 "Prob Up": fc["prob_up"]
             })
     if not rows:
-        return pd.DataFrame()
-    df = pd.DataFrame(rows).sort_values("Expected %", ascending=False)
-    return df
+        return []
+    rows = sorted(rows, key=lambda x: x["Expected %"], reverse=True)
+    return rows
 
 def default_universe(market: str = "mixed"):
     us = ["AAPL","MSFT","TSLA","NVDA","AMZN","META","GOOGL"]

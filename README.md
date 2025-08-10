@@ -1,33 +1,25 @@
-# Market AI – ChatGPT‑style Stock/Crypto Forecasts
+# Market AI — All‑in‑one (OpenAI + Polygon + Forecasts + Sentiment)
+Features
+- ChatGPT‑style chat UI (OpenAI)
+- Live quotes (yfinance)
+- Forecasts with confidence intervals & prob_up (Prophet)
+- News sentiment via Polygon + VADER
+- Screening: “which will rise most” for today/week/month (US + ASX universe)
 
-Public Streamlit app with:
-- ChatGPT-like chat for natural questions
-- Live quotes, forecasting with confidence intervals (Prophet)
-- News sentiment (Polygon + VADER)
-- Screening of US + ASX tickers for likely movers
-
-## Quickstart
-
-```bash
-git clone <your-repo>
-cd <repo>
-cp .env.example .env  # then fill in keys
+## Run locally
+```
+cp .env.example .env   # add your keys
 pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
-### Environment
-Create a `.env` file:
+## Deploy on Streamlit Cloud
+- Upload repo → New App → main file: `streamlit_app.py`
+- Settings → Secrets:
 ```
-OPENAI_API_KEY=sk-...
-POLYGON_API_KEY=...
+OPENAI_API_KEY = "sk-..."
+POLYGON_API_KEY = "your-polygon-key"
 ```
+- Deploy & restart
 
-### Deploy (Streamlit Cloud)
-- Push to GitHub
-- New App → set entrypoint to `streamlit_app.py`
-- Add secrets for the two API keys
-
-## Notes
-- Forecasts are **probabilistic**; not financial advice.
-- Polygon news has best coverage for US; ASX coverage varies.
+**Note:** Forecasts are probabilistic. Not financial advice.
