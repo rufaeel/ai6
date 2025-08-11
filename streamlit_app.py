@@ -1,9 +1,10 @@
 
 import os
+import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
-# Load local .env (dev)
+# Load .env locally
 load_dotenv()
 
 # Copy Streamlit secrets (cloud) into env so imports see them
@@ -12,70 +13,87 @@ if "OPENAI_API_KEY" in st.secrets:
 if "POLYGON_API_KEY" in st.secrets:
     os.environ["POLYGON_API_KEY"] = st.secrets["POLYGON_API_KEY"]
 
-st.set_page_config(page_title="Market AI – Chat & Forecasts", layout="wide")
-st.title("💬 Market AI — ChatGPT‑style forecasts with live data")
+st.set_page_config(page_title="Market AI — Chat + Forecast", layout="wide")
+st.title("💬📈 Market AI — Chat + Forecasts")
 
-# Import after env loaded
-from tools import get_quote, forecast, news_sentiment, screen_top_movers, default_universe
-from llm import respond, SMART_HINTS
+from tools import get_quote, forecast, news_sentiment, screen_top_movers, default_universe, _download_yf
+from llm import respond
 
-st.caption("Ask things like ‘Which ASX stocks will rise most this week’, ‘Forecast TSLA 7d’, or ‘News CBA.AX’.")
+tab_chat, tab_analysis = st.tabs(["💬 Chat", "📈 Analysis"])
 
-# Sidebar diagnostics
 with st.sidebar:
-    st.subheader("Diagnostics")
-    st.write({
-        "OPENAI_API_KEY": bool(os.getenv("OPENAI_API_KEY")),
-        "POLYGON_API_KEY": bool(os.getenv("POLYGON_API_KEY"))
-    })
-    st.markdown("**Quick actions**")
-    if st.button("Top US this week"):
-        st.session_state.setdefault("history", []).append(("user", "Which US stocks will rise most this week?"))
-    if st.button("Top ASX today"):
-        st.session_state.setdefault("history", []).append(("user", "Top ASX gainers today"))
-    if st.button("Forecast AAPL 7d"):
-        st.session_state.setdefault("history", []).append(("user", "Forecast AAPL 7d"))
-    if st.button("News TSLA"):
-        st.session_state.setdefault("history", []).append(("user", "News TSLA"))
+    st.subheader("API Health Check")
+    if st.button("Test OpenAI"):
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            _ = client.models.list()
+            st.success("OpenAI ✅")
+        except Exception as e:
+            st.error(f"OpenAI ❌ {e}")
+    if st.button("Test Polygon"):
+        try:
+            import requests
+            key = os.getenv("POLYGON_API_KEY")
+            r = requests.get(f"https://api.polygon.io/v3/reference/tickers?limit=1&apiKey={key}", timeout=15)
+            st.success(f"Polygon ✅ {r.status_code}")
+        except Exception as e:
+            st.error(f"Polygon ❌ {e}")
 
-# Chat state
-if "history" not in st.session_state:
-    st.session_state.history = []
+with tab_chat:
+    st.caption("Ask things like ‘Forecast CBA.AX 7d’, ‘Top stocks this week’, or ‘News TSLA’.")
+    if "history" not in st.session_state:
+        st.session_state.history = []
+    for role, content in st.session_state.history:
+        st.chat_message(role).markdown(content)
+    user_text = st.chat_input("Ask a question about stocks, crypto, news, or forecasts…")
+    if user_text:
+        st.session_state.history.append(("user", user_text))
+        st.chat_message("user").write(user_text)
+        try:
+            answer = respond(user_text, {
+                "get_quote": get_quote,
+                "forecast": forecast,
+                "news_sentiment": news_sentiment,
+                "screen_top_movers": screen_top_movers,
+                "default_universe": default_universe
+            })
+        except Exception as e:
+            answer = f"Oops, something went wrong: {e}"
+        st.session_state.history.append(("assistant", answer))
+        st.chat_message("assistant").markdown(answer)
 
-# Render chat
-for role, content in st.session_state.history:
-    st.chat_message(role).markdown(content)
+with tab_analysis:
+    st.caption("Type a ticker (US: AAPL, TSLA; ASX: CBA.AX, BHP.AX) and choose horizon.")
+    col1, col2 = st.columns(2)
+    with col1:
+        ticker = st.text_input("Ticker", value="AAPL").strip().upper()
+    with col2:
+        horizon = st.selectbox("Horizon", ["1d", "7d", "30d"], index=1)
 
-# Handle quick actions queued in sidebar
-if st.session_state.history and st.session_state.history[-1][0] == "user" and st.session_state.history[-1][1] in SMART_HINTS:
-    last = st.session_state.history[-1][1]
-    try:
-        answer = respond(last, {
-            "get_quote": get_quote,
-            "forecast": forecast,
-            "news_sentiment": news_sentiment,
-            "screen_top_movers": screen_top_movers,
-            "default_universe": default_universe
-        })
-    except Exception as e:
-        answer = f"Oops, something went wrong: {e}"
-    st.session_state.history.append(("assistant", answer))
-    st.chat_message("assistant").markdown(answer)
+    if st.button("Run Analysis"):
+        hist = _download_yf(ticker, 365)
+        if hist.empty:
+            st.error("No historical data found.")
+        else:
+            st.subheader(f"Historical Chart — {ticker}")
+            chart_df = hist[["Date","Close"]].copy().set_index("Date")
+            st.line_chart(chart_df)
 
-# Normal chat input
-user_text = st.chat_input("Ask a question about stocks, crypto, news, or forecasts…")
-if user_text:
-    st.session_state.history.append(("user", user_text))
-    st.chat_message("user").write(user_text)
-    try:
-        answer = respond(user_text, {
-            "get_quote": get_quote,
-            "forecast": forecast,
-            "news_sentiment": news_sentiment,
-            "screen_top_movers": screen_top_movers,
-            "default_universe": default_universe
-        })
-    except Exception as e:
-        answer = f"Oops, something went wrong: {e}"
-    st.session_state.history.append(("assistant", answer))
-    st.chat_message("assistant").markdown(answer)
+            st.subheader(f"Forecast — next {horizon}")
+            res = forecast(ticker, horizon)
+            if not res.get("ok"):
+                st.error(res.get("error"))
+            else:
+                meta = f"Current: {res['current_price']:.2f} | Expected return: {res['expected_return_pct']:.2f}% | Prob(up): {res['prob_up']:.2f}"
+                st.write(meta)
+                table = pd.DataFrame(res["forecast"])
+                st.dataframe(table, use_container_width=True)
+
+                st.subheader("News sentiment (last few headlines)")
+                ns = news_sentiment(ticker, limit=5)
+                if ns["items"]:
+                    for item in ns["items"]:
+                        st.write(f"{item['sentiment']:+.2f} — {item['title']}")
+                else:
+                    st.write("No recent headlines or Polygon key missing.")

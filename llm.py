@@ -4,14 +4,6 @@ import re
 from typing import Dict
 from openai import OpenAI
 
-SMART_HINTS = [
-    "Which US stocks will rise most this week?",
-    "Top ASX gainers today",
-    "Forecast TSLA 7d with confidence",
-    "News sentiment for CBA.AX",
-    "Quote NVDA",
-]
-
 def _get_openai_key():
     try:
         import streamlit as st
@@ -28,43 +20,23 @@ SYSTEM_PROMPT = (
     "Never claim 100% accuracy. If a ticker seems invalid, ask for clarification."
 )
 
-def _parse_horizon(text: str) -> str:
-    t = text.lower()
-    if any(k in t for k in ["today", "1d", "intraday"]):
-        return "1d"
-    if any(k in t for k in ["month", "30d"]):
-        return "30d"
-    if any(k in t for k in ["week", "7d", "next week"]):
-        return "7d"
-    return "7d"
-
-def _parse_market(text: str) -> str:
-    t = text.lower()
-    if "asx" in t or ".ax" in t:
-        return "asx"
-    if "us" in t or "nasdaq" in t or "nyse" in t:
-        return "us"
-    return "mixed"
-
-def _parse_ticker(text: str) -> str:
-    # capture US tickers and ASX like CBA.AX
-    m = re.findall(r"[A-Za-z]{1,5}(?:\.[A-Za-z]{1,3})?(?:\.AX)?", text)
-    return m[-1] if m else ""
-
 def route_intent(user_text: str) -> Dict[str, str]:
     t = user_text.lower()
-    ticker = _parse_ticker(user_text)
-    horizon = _parse_horizon(user_text)
-    market = _parse_market(user_text)
-
-    if any(k in t for k in ["top", "rise", "gainer", "shoot up", "best performer"]):
-        return {"action": "screen", "horizon": horizon, "market": market}
-    if any(k in t for k in ["forecast", "predict", "price target"]):
-        return {"action": "forecast", "ticker": (ticker or "AAPL"), "horizon": horizon}
+    if "top" in t and ("rise" in t or "gainer" in t or "shoot" in t):
+        if "today" in t or "1d" in t:
+            return {"action": "screen", "horizon": "1d"}
+        if "month" in t:
+            return {"action": "screen", "horizon": "30d"}
+        return {"action": "screen", "horizon": "7d"}
+    if "forecast" in t or "predict" in t or "price target" in t:
+        m = re.findall(r"[A-Za-z]{1,5}(?:\.[A-Za-z]{1,3})?(?:\.AX)?", user_text)
+        return {"action": "forecast", "ticker": (m[-1] if m else "AAPL"), "horizon": "7d"}
     if "news" in t or "sentiment" in t:
-        return {"action": "news", "ticker": (ticker or "AAPL")}
+        m = re.findall(r"[A-Za-z]{1,5}(?:\.[A-Za-z]{1,3})?(?:\.AX)?", user_text)
+        return {"action": "news", "ticker": (m[-1] if m else "AAPL")}
     if "quote" in t or "price" in t:
-        return {"action": "quote", "ticker": (ticker or "AAPL")}
+        m = re.findall(r"[A-Za-z]{1,5}(?:\.[A-Za-z]{1,3})?(?:\.AX)?", user_text)
+        return {"action": "quote", "ticker": (m[-1] if m else "AAPL")}
     return {"action": "chat"}
 
 def _chat_llm(user_text: str) -> str:
@@ -110,7 +82,7 @@ def respond(user_text: str, toolkit) -> str:
         return "\n".join(out)
 
     if act == "screen":
-        uni = toolkit["default_universe"](route.get("market", "mixed"))
+        uni = toolkit["default_universe"]("mixed")
         rows = toolkit["screen_top_movers"](uni, route["horizon"])
         if not rows:
             return "No forecasts available right now."
@@ -123,9 +95,8 @@ def respond(user_text: str, toolkit) -> str:
             for r in rows[:5]
         ]
         table_md = header + "\n" + "\n".join(body_lines)
-        market_label = route.get("market", "mixed")
         return (
-            f"**Top candidates ({route['horizon']}, {market_label.upper()})**\n\n"
+            f"**Top candidates ({route['horizon']})**\n\n"
             f"{table_md}\n\n"
             f"_Note: Estimates, not guarantees._"
         )
@@ -136,5 +107,4 @@ def respond(user_text: str, toolkit) -> str:
             return f"Couldn't fetch quote for {route['ticker']}."
         return f"**{route['ticker']}** price: {q['price']:.4f} ({q['day_change_pct']:+.2f}% today)"
 
-    # Fallback chat
     return _chat_llm(user_text)

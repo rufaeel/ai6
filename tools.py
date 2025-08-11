@@ -32,7 +32,9 @@ def _horizon_days(horizon: str) -> int:
 def _download_yf(ticker: str, lookback_days=365):
     end = datetime.utcnow()
     start = end - timedelta(days=lookback_days)
-    data = yf.download(ticker, start=start, end=end, progress=False, auto_adjust=True)
+    data = yf.download(ticker, start=start, end=end, progress=False, auto_adjust=True, threads=False)
+    if data is None or data.empty:
+        return pd.DataFrame()
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
     data = data.reset_index()
@@ -70,7 +72,6 @@ def forecast(ticker: str, horizon: str = "7d") -> dict:
     mean_pred = float(fc["yhat"].mean())
     expected_return_pct = (mean_pred - current) / current * 100.0
 
-    # simple probability proxy using CI vs current
     up_probs = []
     for _, row in fc.iterrows():
         low = float(row["yhat_lower"]); mid = float(row["yhat"]); high = float(row["yhat_upper"])
