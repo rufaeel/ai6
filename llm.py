@@ -5,13 +5,19 @@ from typing import Dict
 from openai import OpenAI
 
 def _get_openai_key():
+    key = None
     try:
         import streamlit as st
         if "OPENAI_API_KEY" in st.secrets:
-            return st.secrets["OPENAI_API_KEY"]
+            key = st.secrets["OPENAI_API_KEY"]
     except Exception:
         pass
-    return os.getenv("OPENAI_API_KEY")
+    if not key:
+        key = os.getenv("OPENAI_API_KEY", "")
+    key = (key or "").strip().replace("\r", "").replace("\n", "")
+    if not key.startswith("sk-") or len(key) < 20:
+        return ""
+    return key
 
 SYSTEM_PROMPT = (
     "You are MarketAI, a careful financial assistant. "
@@ -42,16 +48,20 @@ def route_intent(user_text: str) -> Dict[str, str]:
 def _chat_llm(user_text: str) -> str:
     key = _get_openai_key()
     if not key:
-        return "❗ OPENAI_API_KEY is missing. Add it in Streamlit → Settings → Secrets, or in your .env."
-    client = OpenAI(api_key=key)
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_text},
-        ],
-    )
-    return resp.choices[0].message.content.strip()
+        return "❗ OPENAI_API_KEY missing or invalid. Add it in Streamlit Secrets or your local .env."
+    try:
+        client = OpenAI(api_key=key)
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_text},
+            ],
+            max_tokens=500
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception as e:
+        return f"OpenAI error: {e}"
 
 def respond(user_text: str, toolkit) -> str:
     route = route_intent(user_text)

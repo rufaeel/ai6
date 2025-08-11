@@ -1,11 +1,17 @@
 
-# Market AI — Dual Mode (Chat + Analysis)
+# Market AI — Dual Mode HOTFIX (prevents 401 after first call)
 
-- ChatGPT‑style chat (OpenAI) with forecasting, screening, and news sentiment
+Fixes:
+- Sanitizes OPENAI_API_KEY (strips newlines/spaces)
+- Uses Secrets only if non-empty (won’t overwrite a good env with empty)
+- Gentle OpenAI health check (tiny chat ping)
+- Guarded OpenAI client with friendly error messages
+
+Features:
+- ChatGPT-style chat (OpenAI) with forecasting/screening/news sentiment
 - Analysis tab with line chart + forecast table + sentiment
-- Confidence intervals and prob_up in text
+- Confidence intervals + prob_up in text
 - ASX + US universes
-- Health Check buttons for OpenAI and Polygon
 
 ## Run locally
 ```

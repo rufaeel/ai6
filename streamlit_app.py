@@ -7,11 +7,11 @@ from dotenv import load_dotenv
 # Load .env locally
 load_dotenv()
 
-# Copy Streamlit secrets (cloud) into env so imports see them
-if "OPENAI_API_KEY" in st.secrets:
-    os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
-if "POLYGON_API_KEY" in st.secrets:
-    os.environ["POLYGON_API_KEY"] = st.secrets["POLYGON_API_KEY"]
+# Copy Streamlit secrets into env (only if non-empty)
+if "OPENAI_API_KEY" in st.secrets and str(st.secrets["OPENAI_API_KEY"]).strip():
+    os.environ["OPENAI_API_KEY"] = str(st.secrets["OPENAI_API_KEY"]).strip()
+if "POLYGON_API_KEY" in st.secrets and str(st.secrets["POLYGON_API_KEY"]).strip():
+    os.environ["POLYGON_API_KEY"] = str(st.secrets["POLYGON_API_KEY"]).strip()
 
 st.set_page_config(page_title="Market AI — Chat + Forecast", layout="wide")
 st.title("💬📈 Market AI — Chat + Forecasts")
@@ -26,17 +26,25 @@ with st.sidebar:
     if st.button("Test OpenAI"):
         try:
             from openai import OpenAI
-            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            _ = client.models.list()
+            key = os.getenv("OPENAI_API_KEY", "").strip()
+            client = OpenAI(api_key=key)
+            _ = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role":"system","content":"ping"},{"role":"user","content":"ping"}],
+                max_tokens=1,
+            )
             st.success("OpenAI ✅")
         except Exception as e:
             st.error(f"OpenAI ❌ {e}")
     if st.button("Test Polygon"):
         try:
             import requests
-            key = os.getenv("POLYGON_API_KEY")
+            key = os.getenv("POLYGON_API_KEY", "").strip()
             r = requests.get(f"https://api.polygon.io/v3/reference/tickers?limit=1&apiKey={key}", timeout=15)
-            st.success(f"Polygon ✅ {r.status_code}")
+            if r.status_code == 200:
+                st.success("Polygon ✅")
+            else:
+                st.warning(f"Polygon responded with status {r.status_code}")
         except Exception as e:
             st.error(f"Polygon ❌ {e}")
 
