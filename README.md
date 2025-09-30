@@ -1,30 +1,30 @@
 
-# Market AI — Dual Mode HOTFIX (prevents 401 after first call)
+# Market AI — Dual Mode (KeyGuard Build)
 
-Fixes:
-- Sanitizes OPENAI_API_KEY (strips newlines/spaces)
-- Uses Secrets only if non-empty (won’t overwrite a good env with empty)
-- Gentle OpenAI health check (tiny chat ping)
-- Guarded OpenAI client with friendly error messages
+**What’s new (anti-401):**
+- Rejects `sk-proj-...` keys at startup with a clear message.
+- Sanitizes keys (trims spaces/newlines).
+- Sidebar shows masked key status & type.
+- Gentle OpenAI health check.
 
-Features:
-- ChatGPT-style chat (OpenAI) with forecasting/screening/news sentiment
-- Analysis tab with line chart + forecast table + sentiment
-- Confidence intervals + prob_up in text
-- ASX + US universes
+**Features:**
+- ChatGPT-style chat for markets (OpenAI).
+- ASX + US tickers, forecasts with confidence intervals.
+- Polygon news sentiment.
+- Analysis tab with chart + forecast table.
+
+## Deploy on Streamlit Cloud
+1. Upload this repo. Main file: `streamlit_app.py`
+2. **Settings → Secrets** (TOML):
+```
+OPENAI_API_KEY = "sk-your-personal-key"
+POLYGON_API_KEY = "your-polygon-key"
+```
+3. Save → **Restart** app.
 
 ## Run locally
 ```
-cp .env.example .env   # add your keys
+cp .env.example .env   # paste your keys without quotes
 pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
-
-## Streamlit Cloud
-- Upload repo → main file: `streamlit_app.py`
-- Settings → Secrets:
-```
-OPENAI_API_KEY = "sk-..."
-POLYGON_API_KEY = "your-polygon-key"
-```
-- Restart app after saving secrets

@@ -7,14 +7,53 @@ from dotenv import load_dotenv
 # Load .env locally
 load_dotenv()
 
-# Copy Streamlit secrets into env (only if non-empty)
-if "OPENAI_API_KEY" in st.secrets and str(st.secrets["OPENAI_API_KEY"]).strip():
-    os.environ["OPENAI_API_KEY"] = str(st.secrets["OPENAI_API_KEY"]).strip()
-if "POLYGON_API_KEY" in st.secrets and str(st.secrets["POLYGON_API_KEY"]).strip():
-    os.environ["POLYGON_API_KEY"] = str(st.secrets["POLYGON_API_KEY"]).strip()
+# --- Robust key handling & validator ---
+def _sanitize(s: str | None) -> str:
+    return (s or "").strip().replace("\r", "").replace("\n", "")
+
+def _put_env_if_nonempty(name: str, value: str):
+    v = _sanitize(value)
+    if v:
+        os.environ[name] = v
+
+# Pull from Streamlit secrets first (cloud), then fall back to .env
+st_openai = None
+st_polygon = None
+try:
+    if "OPENAI_API_KEY" in st.secrets:
+        st_openai = str(st.secrets["OPENAI_API_KEY"])
+    if "POLYGON_API_KEY" in st.secrets:
+        st_polygon = str(st.secrets["POLYGON_API_KEY"])
+except Exception:
+    pass
+
+# Only set env if the secret is non-empty (avoid overwriting good values)
+_put_env_if_nonempty("OPENAI_API_KEY", st_openai or os.getenv("OPENAI_API_KEY", ""))
+_put_env_if_nonempty("POLYGON_API_KEY", st_polygon or os.getenv("POLYGON_API_KEY", ""))
+
+OPENAI_KEY = _sanitize(os.getenv("OPENAI_API_KEY", ""))
+POLYGON_KEY = _sanitize(os.getenv("POLYGON_API_KEY", ""))
+
+def _mask(k: str) -> str:
+    if not k:
+        return "(none)"
+    if len(k) <= 10:
+        return "****"
+    return f"{k[:6]}…{k[-4:]}"
 
 st.set_page_config(page_title="Market AI — Chat + Forecast", layout="wide")
 st.title("💬📈 Market AI — Chat + Forecasts")
+
+# Hard fail fast if a project key is used
+if OPENAI_KEY.startswith("sk-proj-"):
+    st.error(
+        "⚠️ Detected an **OpenAI Project key** (`sk-proj-…`). "
+        "This build requires a **personal secret key** that starts with `sk-`.\n\n"
+        "Go to https://platform.openai.com/api-keys, switch to **Personal** (top-left), "
+        "click **Create new secret key**, then paste it in **Settings → Secrets** as:\n\n"
+        '```toml\nOPENAI_API_KEY = "sk-..."\nPOLYGON_API_KEY = "your-polygon-key"\n```'
+    )
+    st.stop()
 
 from tools import get_quote, forecast, news_sentiment, screen_top_movers, default_universe, _download_yf
 from llm import respond
@@ -26,7 +65,7 @@ with st.sidebar:
     if st.button("Test OpenAI"):
         try:
             from openai import OpenAI
-            key = os.getenv("OPENAI_API_KEY", "").strip()
+            key = OPENAI_KEY
             client = OpenAI(api_key=key)
             _ = client.chat.completions.create(
                 model="gpt-4o-mini",
@@ -39,7 +78,7 @@ with st.sidebar:
     if st.button("Test Polygon"):
         try:
             import requests
-            key = os.getenv("POLYGON_API_KEY", "").strip()
+            key = POLYGON_KEY
             r = requests.get(f"https://api.polygon.io/v3/reference/tickers?limit=1&apiKey={key}", timeout=15)
             if r.status_code == 200:
                 st.success("Polygon ✅")
@@ -47,6 +86,12 @@ with st.sidebar:
                 st.warning(f"Polygon responded with status {r.status_code}")
         except Exception as e:
             st.error(f"Polygon ❌ {e}")
+
+    st.divider()
+    st.caption("Key status (masked)")
+    st.write(f"OpenAI key: **{_mask(OPENAI_KEY)}**")
+    st.write("Type: " + ("Personal ✅" if OPENAI_KEY.startswith("sk-") else ("Project ❌" if OPENAI_KEY.startswith("sk-proj-") else "Missing ❌")))
+    st.write(f"Polygon key: **{_mask(POLYGON_KEY)}**")
 
 with tab_chat:
     st.caption("Ask things like ‘Forecast CBA.AX 7d’, ‘Top stocks this week’, or ‘News TSLA’.")

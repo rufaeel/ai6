@@ -4,7 +4,7 @@ import re
 from typing import Dict
 from openai import OpenAI
 
-def _get_openai_key():
+def _get_openai_key() -> str:
     key = None
     try:
         import streamlit as st
@@ -15,7 +15,8 @@ def _get_openai_key():
     if not key:
         key = os.getenv("OPENAI_API_KEY", "")
     key = (key or "").strip().replace("\r", "").replace("\n", "")
-    if not key.startswith("sk-") or len(key) < 20:
+    # Reject project keys explicitly so the user sees a clear message
+    if key.startswith("sk-proj-"):
         return ""
     return key
 
@@ -48,7 +49,12 @@ def route_intent(user_text: str) -> Dict[str, str]:
 def _chat_llm(user_text: str) -> str:
     key = _get_openai_key()
     if not key:
-        return "❗ OPENAI_API_KEY missing or invalid. Add it in Streamlit Secrets or your local .env."
+        return (
+            "❗ **OPENAI_API_KEY missing or invalid.**\n\n"
+            "- Make sure you created a **personal key** (starts with `sk-`, not `sk-proj-`).\n"
+            "- In Streamlit Cloud → **Settings → Secrets** use TOML:\n"
+            '```toml\nOPENAI_API_KEY = "sk-..."\nPOLYGON_API_KEY = "your-polygon-key"\n```'
+        )
     try:
         client = OpenAI(api_key=key)
         resp = client.chat.completions.create(
@@ -57,7 +63,7 @@ def _chat_llm(user_text: str) -> str:
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_text},
             ],
-            max_tokens=500
+            max_tokens=500,
         )
         return resp.choices[0].message.content.strip()
     except Exception as e:
