@@ -1,3 +1,30 @@
+# ----- BEGIN INLINE DIAGNOSTICS + FORCE FIX -----
+import os, streamlit as st
+
+def _mask(v): 
+    v = v or ""
+    return (v[:6] + "…" + v[-6:]) if len(v) > 12 else ("(none)" if not v else "****")
+
+secret_key = str(st.secrets.get("OPENAI_API_KEY", "")).strip()
+env_key    = (os.getenv("OPENAI_API_KEY") or "").strip()
+
+# Show what the app is actually seeing (masked)
+with st.sidebar:
+    st.caption("🔐 Inline Diagnostics")
+    st.write("st.secrets.OPENAI_API_KEY:", _mask(secret_key))
+    st.write("env OPENAI_API_KEY:", _mask(env_key))
+
+# If env still holds a project key, neutralize it
+if env_key.startswith("sk-proj-"):
+    try:
+        del os.environ["OPENAI_API_KEY"]
+    except Exception:
+        pass
+
+# Force all downstream code paths to the **secrets** value
+if secret_key:
+    os.environ["OPENAI_API_KEY"] = secret_key
+# ----- END INLINE DIAGNOSTICS + FORCE FIX -----
 
 import os
 import pandas as pd
