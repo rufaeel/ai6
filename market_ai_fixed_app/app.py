@@ -4,6 +4,8 @@ import re
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
+from modules.hi_target_predictor import run_hi_target_strategy
+import pandas as pd
 
 # Optional: still load .env for local dev of NON-secrets like POLYGON if you want
 load_dotenv()
