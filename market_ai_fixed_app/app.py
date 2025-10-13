@@ -156,6 +156,28 @@ with tab_analysis:
         ticker = st.text_input("Ticker", value="AAPL").strip().upper()
     with col2:
         horizon = st.selectbox("Horizon", ["1d", "7d", "30d"], index=1)
+        # --- Aggressive Strategy (5%-target backtest) ---
+# Convert your historical data (hist) into OHLCV format
+hist_df = hist.set_index("Date") if "Date" in hist.columns else hist
+ohlcv = pd.DataFrame(index=hist_df.index)
+ohlcv["close"] = hist_df["Close"].astype(float)
+ohlcv["open"]  = ohlcv["close"].shift(1).fillna(ohlcv["close"])
+ohlcv["high"]  = ohlcv[["open","close"]].max(axis=1)
+ohlcv["low"]   = ohlcv[["open","close"]].min(axis=1)
+
+# Run the high-target strategy (aiming for larger moves)
+bt_df, summary = run_hi_target_strategy(ohlcv, horizon_days=7, price_col="close")
+
+st.subheader("Aggressive Strategy (larger-move targeting)")
+st.write(
+    f"Bars: {summary['bars']:,} | Final equity: {summary['final_equity']:.2f}x | "
+    f"Weekly mean: {summary['weekly_mean']*100:.2f}% | "
+    f"Median: {summary['weekly_median']*100:.2f}% | "
+    f"5–95%: {summary['weekly_p05']*100:.2f}% → {summary['weekly_p95']*100:.2f}% | "
+    f"Hit rate: {summary['hit_rate']*100:.1f}% | Sharpe(d): {summary['sharpe_daily']:.2f}"
+)
+st.line_chart(bt_df["equity"])
+
 
     if st.button("Run Analysis"):
         hist = _download_yf(ticker, 365)
