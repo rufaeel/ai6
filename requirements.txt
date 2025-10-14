@@ -1,9 +1,8 @@
-pandas
-numpy
-requests
-websockets
-python-dotenv
 streamlit
+python-dotenv
+pandas
 requests
 yfinance
 openai
+vaderSentiment
+
