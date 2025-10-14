@@ -6,6 +6,11 @@ import streamlit as st
 from dotenv import load_dotenv
 from modules.hi_target_predictor import run_hi_target_strategy
 import pandas as pd
+from intent_hotfix_top_gainers.tools_additions import handle_top_gainer_query
+from modules.predictor import predict_direction
+from tools import _download_yf
+import re
+
 
 # Optional: still load .env for local dev of NON-secrets like POLYGON if you want
 load_dotenv()
