@@ -139,6 +139,28 @@ with tab_chat:
         st.chat_message(role).markdown(content)
     user_text = st.chat_input("Ask a question about stocks, crypto, news, or forecasts…")
     if user_text:
+        from intent_hotfix_top_gainers.tools_additions import handle_highest_riser_intent
+from modules.predictor import predict_direction
+from tools import _download_yf
+import re
+
+user_text = st.chat_input("Ask a question about stocks…")
+if user_text:
+    st.session_state.history.append(("user", user_text))
+    st.chat_message("user").write(user_text)
+
+    # 💡 Add this block just below the st.chat_message("user") line
+    if re.search(r"(highest\\s+riser|top\\s+gainer|rise\\s+highest\\s+today|which\\s+stock\\s+will\\s+rise\\s+most\\s+today)", user_text, re.I):
+        answer = handle_highest_riser_intent(_download_yf, predict_direction, limit=10, horizon_days=7)
+        st.session_state.history.append(("assistant", answer))
+        st.chat_message("assistant").markdown(answer)
+        st.stop()  # stops here so the regular respond() doesn’t run
+
+    # your normal chat fallback logic
+    answer = respond(user_text, {...})
+    st.session_state.history.append(("assistant", answer))
+    st.chat_message("assistant").markdown(answer)
+
         # Intent: predict highest riser today / top gainer today / biggest mover
 text = (user_text or "").strip()
 if re.search(r"(highest\s+riser|top\s+gainer|biggest\s+mover)", text, re.I):
