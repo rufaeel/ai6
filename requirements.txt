@@ -2,3 +2,8 @@ pandas
 numpy
 requests
 websockets
+python-dotenv
+streamlit
+requests
+yfinance
+openai
