@@ -139,6 +139,14 @@ with tab_chat:
         st.chat_message(role).markdown(content)
     user_text = st.chat_input("Ask a question about stocks, crypto, news, or forecasts…")
     if user_text:
+        # Intent: predict highest riser today / top gainer today / biggest mover
+text = (user_text or "").strip()
+if re.search(r"(highest\s+riser|top\s+gainer|biggest\s+mover)", text, re.I):
+    answer = handle_top_gainer_query(_download_yf, predict_direction, limit=10, horizon_days=7)
+    st.session_state.history.append(("assistant", answer))
+    st.chat_message("assistant").markdown(answer)
+    st.stop()  # prevents sending to the general LLM handler
+
         st.session_state.history.append(("user", user_text))
         st.chat_message("user").write(user_text)
         try:
