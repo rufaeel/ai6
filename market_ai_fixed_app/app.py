@@ -122,7 +122,7 @@ with st.sidebar:
     st.write(f"Polygon key: **{_mask(POLYGON_KEY)}**")
 
 # ------------------- ORIGINAL APP CONTENT BELOW -------------------
-from tools import get_quote, forecast, news_sentiment, screen_top_movers, default_universe, _download_yf
+from modules.forecast_fallback import forecast
 from llm import respond
 
 tab_chat, tab_analysis = st.tabs(["💬 Chat", "📈 Analysis"])
