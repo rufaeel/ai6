@@ -3,4 +3,6 @@ pandas
 numpy
 requests
 websockets
+statsmodels
+# prophet  # (optional – only if you want the official Prophet)
 
