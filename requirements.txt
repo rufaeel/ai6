@@ -6,3 +6,5 @@ yfinance
 openai
 vaderSentiment
 
+numpy
+prophet
