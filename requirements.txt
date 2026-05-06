@@ -8,3 +8,5 @@ vaderSentiment
 numpy
 prophet
 
+numpy
+prophet
