@@ -2,6 +2,7 @@
 import os
 from datetime import datetime, timedelta
 import pandas as pd
+import numpy as np
 import yfinance as yf
 import requests
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
@@ -39,6 +40,37 @@ def _download_yf(ticker: str, lookback_days=365):
         data.columns = data.columns.get_level_values(0)
     data = data.reset_index()
     return data
+    def _load_prophet():
+    try:
+        from prophet import Prophet
+        return Prophet
+    except Exception:
+        return None
+
+
+def _fallback_forecast(df: pd.DataFrame, days: int) -> pd.DataFrame:
+    y = df["y"].astype(float).values
+    n = len(y)
+
+    if n >= 2:
+        x = np.arange(n, dtype=float)
+        slope, intercept = np.polyfit(x, y, 1)
+        future_x = np.arange(n, n + days, dtype=float)
+        preds = slope * future_x + intercept
+        residuals = y - (slope * x + intercept)
+        std = float(np.std(residuals)) if len(residuals) > 1 else max(abs(y[-1]) * 0.01, 1e-6)
+    else:
+        last = float(y[-1])
+        preds = np.full(days, last, dtype=float)
+        std = max(abs(last) * 0.01, 1e-6)
+
+    dates = pd.date_range(df["ds"].iloc[-1] + pd.Timedelta(days=1), periods=days, freq="D")
+    return pd.DataFrame({
+        "ds": dates,
+        "yhat": preds,
+        "yhat_lower": preds - 1.96 * std,
+        "yhat_upper": preds + 1.96 * std,
+    })
 
 def get_quote(ticker: str) -> dict:
     df = _download_yf(ticker, 30)
@@ -52,21 +84,32 @@ def get_quote(ticker: str) -> dict:
     return {"ok": True, "ticker": ticker, "price": round(price, 4), "day_change_pct": round(pct, 3)}
 
 def forecast(ticker: str, horizon: str = "7d") -> dict:
-    try:
-        from prophet import Prophet
-    except Exception as e:
-        return {"ok": False, "error": f"Prophet not installed: {e}"}
-
+       Prophet = _load_prophet()
     days = _horizon_days(horizon)
     hist = _download_yf(ticker, 500)
     if hist.empty or "Close" not in hist.columns:
         return {"ok": False, "error": f"No historical data for {ticker}"}
 
     df = hist[["Date", "Close"]].rename(columns={"Date": "ds", "Close": "y"})
-    model = Prophet(daily_seasonality=True, weekly_seasonality=True)
-    model.fit(df)
-    future = model.make_future_dataframe(periods=days)
-    fc = model.predict(future).tail(days)[["ds", "yhat", "yhat_lower", "yhat_upper"]]
+    df["ds"] = pd.to_datetime(df["ds"], errors="coerce")
+    df["y"] = pd.to_numeric(df["y"], errors="coerce")
+    df = df.dropna(subset=["ds", "y"]).copy()
+    if df.empty:
+        return {"ok": False, "error": f"No usable historical data for {ticker}"}
+    used_fallback = False
+    if Prophet is not None:
+        try:
+            model = Prophet(daily_seasonality=True, weekly_seasonality=True)
+            model.fit(df)
+            future = model.make_future_dataframe(periods=days)
+            fc = model.predict(future).tail(days)[["ds", "yhat", "yhat_lower", "yhat_upper"]]
+        except Exception:
+            used_fallback = True
+            fc = _fallback_forecast(df, days)
+    else:
+        used_fallback = True
+        fc = _fallback_forecast(df, days)
+
 
     current = float(df["y"].iloc[-1])
     mean_pred = float(fc["yhat"].mean())
@@ -93,6 +136,7 @@ def forecast(ticker: str, horizon: str = "7d") -> dict:
         "current_price": round(current, 4),
         "expected_return_pct": round(expected_return_pct, 3),
         "prob_up": round(prob_up, 2),
+        "used_fallback": used_fallback,
         "forecast": fc.to_dict(orient="records"),
     }
 
