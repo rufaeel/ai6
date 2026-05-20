@@ -57,6 +57,7 @@ def _chat_llm(user_text: str) -> str:
         )
     try:
         client = OpenAI(api_key=key)
+      @@ -60,67 +60,68 @@ def _chat_llm(user_text: str) -> str:
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -82,6 +83,7 @@ def respond(user_text: str, toolkit) -> str:
         lines.append(f"Current: {fc['current_price']:.4f}")
         lines.append(f"Expected return: {fc['expected_return_pct']:.2f}%")
         lines.append(f"Prob(up): {fc['prob_up']:.2f}")
+        lines.append(f"Risk attached to trade: {fc.get('risk_pct', 0.0):.2f}%")
         lines.append("")
         lines.append("**Confidence interval (daily)**")
         for row in fc["forecast"]:
@@ -105,9 +107,12 @@ def respond(user_text: str, toolkit) -> str:
         header = (
             "| Ticker | Current | Expected % | Prob Up |\n"
             "|---|---:|---:|---:|"
+            "| Ticker | Current | Expected % | Prob Up | Risk % |\n"
+            "|---|---:|---:|---:|---:|"
         )
         body_lines = [
             f"| {r['Ticker']} | {r['Current']:.2f} | {r['Expected %']:.2f}% | {r['Prob Up']:.2f} |"
+            f"| {r['Ticker']} | {r['Current']:.2f} | {r['Expected %']:.2f}% | {r['Prob Up']:.2f} | {r.get('Risk %', 0.0):.2f}% |"
             for r in rows[:5]
         ]
         table_md = header + "\n" + "\n".join(body_lines)
@@ -123,4 +128,5 @@ def respond(user_text: str, toolkit) -> str:
             return f"Couldn't fetch quote for {route['ticker']}."
         return f"**{route['ticker']}** price: {q['price']:.4f} ({q['day_change_pct']:+.2f}% today)"
 
+    return _chat_llm(user_text)
     return _chat_llm(user_text)
