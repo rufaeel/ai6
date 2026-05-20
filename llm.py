@@ -105,13 +105,10 @@ def respond(user_text: str, toolkit) -> str:
         if not rows:
             return "No forecasts available right now."
         header = (
-            "| Ticker | Current | Expected % | Prob Up |\n"
-            "|---|---:|---:|---:|"
             "| Ticker | Current | Expected % | Prob Up | Risk % |\n"
             "|---|---:|---:|---:|---:|"
         )
         body_lines = [
-            f"| {r['Ticker']} | {r['Current']:.2f} | {r['Expected %']:.2f}% | {r['Prob Up']:.2f} |"
             f"| {r['Ticker']} | {r['Current']:.2f} | {r['Expected %']:.2f}% | {r['Prob Up']:.2f} | {r.get('Risk %', 0.0):.2f}% |"
             for r in rows[:5]
         ]
